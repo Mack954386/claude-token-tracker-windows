@@ -4,14 +4,16 @@ Write-Host "=== Claude Token Tracker セットアップ ===" -ForegroundColor Cy
 Write-Host ""
 
 # メールアドレスを入力させる
-do {
-    $email = Read-Host "メールアドレスを入力してください"
-    $email = $email.Trim()
-    if ($email -notmatch "^[^@]+@[^@]+\.[^@]+$") {
+$email = ""
+while (-not $email) {
+    $input = Read-Host "メールアドレスを入力してください"
+    $input = $input.Trim()
+    if ($input -match "^[^@]+@[^@]+\.[^@]+$") {
+        $email = $input
+    } else {
         Write-Host "正しいメールアドレスを入力してください。" -ForegroundColor Yellow
-        $email = ""
     }
-} while (-not $email)
+}
 
 Write-Host ""
 Write-Host "メールアドレス: $email" -ForegroundColor Green
@@ -47,7 +49,12 @@ $settings = @{}
 if (Test-Path $settingsPath) {
     try {
         $settingsContent = Get-Content $settingsPath -Raw -Encoding UTF8
-        $settings = $settingsContent | ConvertFrom-Json -AsHashtable
+        $parsed = $settingsContent | ConvertFrom-Json
+        # PSCustomObject をハッシュテーブルに変換（PS 5.1 互換）
+        $settings = @{}
+        $parsed.PSObject.Properties | ForEach-Object {
+            $settings[$_.Name] = $_.Value
+        }
         Write-Host "既存のsettings.jsonを読み込みました。" -ForegroundColor Gray
     } catch {
         Write-Host "settings.jsonの読み込みに失敗しました。新規作成します。" -ForegroundColor Yellow
@@ -60,7 +67,8 @@ if (-not $settings.ContainsKey("hooks")) {
     $settings["hooks"] = @{}
 }
 
-$hookCommand = "powershell -ExecutionPolicy Bypass -File `"%USERPROFILE%\.claude\token-hook.ps1`""
+$hookPath = Join-Path $env:USERPROFILE ".claude\token-hook.ps1"
+$hookCommand = "powershell -ExecutionPolicy Bypass -File `"$hookPath`""
 
 $newHookEntry = @{
     matcher = ""
